@@ -1,0 +1,7 @@
+Feb 13th 2026
+
+    Plaid: acts as a bridge between apps and banks for accessing financial data
+
+    Dwolla: Facilitating money transaction, which includes payment processing into application
+
+    Appwrite: Database creation
