@@ -6,24 +6,23 @@ import { parseStringify } from "../utils";
 
 const {
   APPWRITE_DATABASE_ID: DATABASE_ID,
-  APPWRITE_TRANSACTION_COLLECTION_ID: TRANSACTION_COLLECTION_ID,
+  APPWRITE_TRANSACTION_TABLES_ID: TRANSACTION_TABLES_ID,
 } = process.env;
 
 export const createTransaction = async (transaction: CreateTransactionProps) => {
   try {
-    const { database } = await createAdminClient();
+    const { tablesDb } = await createAdminClient();
 
-    const newTransaction = await database.createDocument(
-      DATABASE_ID!,
-      TRANSACTION_COLLECTION_ID!,
-      ID.unique(),
-      {
+    const newTransaction = await tablesDb.createRow({
+      databaseId: DATABASE_ID!,
+      tableId: TRANSACTION_TABLES_ID!,
+      rowId: ID.unique(),
+      data: {
         channel: 'online',
         category: 'Transfer',
         ...transaction
       }
-    )
-
+    })
     return parseStringify(newTransaction);
   } catch (error) {
     console.log(error);
@@ -32,25 +31,26 @@ export const createTransaction = async (transaction: CreateTransactionProps) => 
 
 export const getTransactionsByBankId = async ({ bankId }: getTransactionsByBankIdProps) => {
   try {
-    const { database } = await createAdminClient();
+    const { tablesDb } = await createAdminClient();
 
-    const senderTransactions = await database.listDocuments(
-      DATABASE_ID!,
-      TRANSACTION_COLLECTION_ID!,
-      [Query.equal('senderBankId', bankId)],
-    )
+    const senderTransactions = await tablesDb.listRows({
+      databaseId: DATABASE_ID!,
+      tableId: TRANSACTION_TABLES_ID!,
+      queries: [Query.equal('senderBankId', bankId)],
+    })
 
-    const receiverTransactions = await database.listDocuments(
-      DATABASE_ID!,
-      TRANSACTION_COLLECTION_ID!,
-      [Query.equal('receiverBankId', bankId)],
-    );
+    const receiverTransactions = await tablesDb.listRows({
+      databaseId: DATABASE_ID!,
+      tableId: TRANSACTION_TABLES_ID!,
+      queries: [Query.equal('receiverBankId', bankId)],
+    });
+
 
     const transactions = {
       total: senderTransactions.total + receiverTransactions.total,
-      documents: [
-        ...senderTransactions.documents,
-        ...receiverTransactions.documents,
+      tables: [
+        ...senderTransactions.rows,
+        ...receiverTransactions.rows,
       ]
     }
 
