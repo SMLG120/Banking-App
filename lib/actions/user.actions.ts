@@ -12,21 +12,20 @@ import { addFundingSource, createDwollaCustomer } from "./dwolla.actions";
 
 const {
   APPWRITE_DATABASE_ID: DATABASE_ID,
-  APPWRITE_USER_COLLECTION_ID: USER_COLLECTION_ID,
-  APPWRITE_BANK_COLLECTION_ID: BANK_COLLECTION_ID,
+  APPWRITE_USER_TABLES_ID: USER_TABLES_ID,
+  APPWRITE_BANK_TABLES_ID: BANK_TABLES_ID,
 } = process.env;
 
 export const getUserInfo = async ({ userId }: getUserInfoProps) => {
   try {
-    const { database } = await createAdminClient();
+    const { tablesDb } = await createAdminClient();
 
-    const user = await database.listDocuments(
-      DATABASE_ID!,
-      USER_COLLECTION_ID!,
-      [Query.equal('userId', [userId])]
-    )
-
-    return parseStringify(user.documents[0]);
+    const user = await tablesDb.listRows({
+      databaseId: DATABASE_ID!,
+      tableId: USER_TABLES_ID!,
+      queries: [Query.equal('userId', userId)]
+    });
+    return parseStringify(user.rows[0]);
   } catch (error) {
     console.log(error)
   }
@@ -35,7 +34,12 @@ export const getUserInfo = async ({ userId }: getUserInfoProps) => {
 export const signIn = async ({ email, password }: signInProps) => {
   try {
     const { account } = await createAdminClient();
-    const session = await account.createEmailPasswordSession(email, password);
+    // Utilisez un objet pour passer les paramètres
+    const session = await account.createEmailPasswordSession({
+      email: email,
+      password: password
+    });
+
 
     cookies().set("appwrite-session", session.secret, {
       path: "/",
@@ -45,6 +49,7 @@ export const signIn = async ({ email, password }: signInProps) => {
     });
 
     const user = await getUserInfo({ userId: session.userId })
+    console.log('Logged in user', user);
 
     return parseStringify(user);
   } catch (error) {
@@ -58,7 +63,7 @@ export const signUp = async ({ password, ...userData }: SignUpParams) => {
   let newUserAccount;
 
   try {
-    const { account, database } = await createAdminClient();
+    const { account, tablesDb } = await createAdminClient();
 
     newUserAccount = await account.create(
       ID.unique(),
@@ -78,19 +83,22 @@ export const signUp = async ({ password, ...userData }: SignUpParams) => {
 
     const dwollaCustomerId = extractCustomerIdFromUrl(dwollaCustomerUrl);
 
-    const newUser = await database.createDocument(
-      DATABASE_ID!,
-      USER_COLLECTION_ID!,
-      ID.unique(),
-      {
+    const newUser = await tablesDb.createRow({
+      databaseId: DATABASE_ID!,
+      tableId: USER_TABLES_ID!,
+      rowId: ID.unique(),
+      data: {
         ...userData,
         userId: newUserAccount.$id,
         dwollaCustomerId,
         dwollaCustomerUrl
       }
-    )
+    });
 
-    const session = await account.createEmailPasswordSession(email, password);
+    const session = await account.createEmailPasswordSession({
+      email: userData.email,
+      password: password
+    });
 
     cookies().set("appwrite-session", session.secret, {
       path: "/",
@@ -98,6 +106,8 @@ export const signUp = async ({ password, ...userData }: SignUpParams) => {
       sameSite: "strict",
       secure: true,
     });
+    
+    if(!newUser) throw new Error('Error creating user in database');
 
     return parseStringify(newUser);
   } catch (error) {
@@ -125,7 +135,7 @@ export const logoutAccount = async () => {
 
     cookies().delete('appwrite-session');
 
-    await account.deleteSession('current');
+    await account.deleteSessions(); // delete all sessions for the user
   } catch (error) {
     return null;
   }
@@ -160,13 +170,13 @@ export const createBankAccount = async ({
   shareableId,
 }: createBankAccountProps) => {
   try {
-    const { database } = await createAdminClient();
+    const { tablesDb } = await createAdminClient();
 
-    const bankAccount = await database.createDocument(
-      DATABASE_ID!,
-      BANK_COLLECTION_ID!,
-      ID.unique(),
-      {
+    const bankAccount = await tablesDb.createRow({
+      databaseId: DATABASE_ID!,
+      tableId: BANK_TABLES_ID!,
+      rowId: ID.unique(),
+      data: {
         userId,
         bankId,
         accountId,
@@ -174,8 +184,7 @@ export const createBankAccount = async ({
         fundingSourceUrl,
         shareableId,
       }
-    )
-
+    })
     return parseStringify(bankAccount);
   } catch (error) {
     console.log(error);
@@ -246,15 +255,15 @@ export const exchangePublicToken = async ({
 
 export const getBanks = async ({ userId }: getBanksProps) => {
   try {
-    const { database } = await createAdminClient();
+    const { tablesDb } = await createAdminClient();
 
-    const banks = await database.listDocuments(
-      DATABASE_ID!,
-      BANK_COLLECTION_ID!,
-      [Query.equal('userId', [userId])]
-    )
+    const banks = await tablesDb.listRows({
+      databaseId: DATABASE_ID!,
+      tableId: BANK_TABLES_ID!,
+      queries: [Query.equal('userId', userId)]
+    });
 
-    return parseStringify(banks.documents);
+    return parseStringify(banks.rows);
   } catch (error) {
     console.log(error)
   }
@@ -262,15 +271,15 @@ export const getBanks = async ({ userId }: getBanksProps) => {
 
 export const getBank = async ({ documentId }: getBankProps) => {
   try {
-    const { database } = await createAdminClient();
+    const { tablesDb } = await createAdminClient();
 
-    const bank = await database.listDocuments(
-      DATABASE_ID!,
-      BANK_COLLECTION_ID!,
-      [Query.equal('$id', [documentId])]
-    )
+    const bank = await tablesDb.listRows({
+      databaseId: DATABASE_ID!,
+      tableId: BANK_TABLES_ID!,
+      queries: [Query.equal('$id', [documentId])]
+    })
 
-    return parseStringify(bank.documents[0]);
+    return parseStringify(bank.rows[0]);
   } catch (error) {
     console.log(error)
   }
@@ -278,17 +287,18 @@ export const getBank = async ({ documentId }: getBankProps) => {
 
 export const getBankByAccountId = async ({ accountId }: getBankByAccountIdProps) => {
   try {
-    const { database } = await createAdminClient();
+    const { tablesDb } = await createAdminClient();
 
-    const bank = await database.listDocuments(
-      DATABASE_ID!,
-      BANK_COLLECTION_ID!,
-      [Query.equal('accountId', [accountId])]
-    )
+    const bank = await tablesDb.listRows({
+      databaseId: DATABASE_ID!,
+      tableId: BANK_TABLES_ID!,
+      queries: [Query.equal('accountId', [accountId])]
+    })
+
 
     if (bank.total !== 1) return null;
 
-    return parseStringify(bank.documents[0]);
+    return parseStringify(bank.rows[0]);
   } catch (error) {
     console.log(error)
   }

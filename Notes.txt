@@ -3,5 +3,25 @@ Feb 13th 2026
     Plaid: acts as a bridge between apps and banks for accessing financial data
 
     Dwolla: Facilitating money transaction, which includes payment processing into application
+            Sends, receives and requests payments specializing real time payments
 
     Appwrite: Database creation
+
+
+Feb 22th 2026
+
+    Plaid Banking Functionality Handshake:
+        1. Create a link token
+        2. Pass generated link token to Plaid link
+        3. Trigger flow of connecting bank account to application through Plaid link
+        4. On Success, Plaid Link will provide temporary public token
+        5. Exchange public token with permanent access token
+        6. Exchange access token to get bank account information
+        7. Processor:
+            a. Generate a processor token by exchanging access token and bank account id to securely exchnage data between Plaid and the processor.
+            b. Create a Funding Srouce using Dwolla.
+
+        Dwolla Transfer:
+            1. Pass sender funding source url
+            2. Pass receiver funding source url
+            3. Amount
